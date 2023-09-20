@@ -6,6 +6,8 @@ import com.kintone.client.model.record.DateTimeFieldValue;
 import com.kintone.client.model.record.NumberFieldValue;
 import com.kintone.client.model.record.Record;
 import com.kintone.client.model.record.SingleLineTextFieldValue;
+import com.kintone.client.model.record.SubtableFieldValue;
+import com.kintone.client.model.record.TableRow;
 import org.embulk.EmbulkTestRuntime;
 import org.embulk.config.ConfigDiff;
 import org.embulk.config.ConfigSource;
@@ -23,6 +25,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
+import java.lang.reflect.Array;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -81,7 +84,46 @@ public class TestKintoneInputPlugin
         PluginTask task = configMapper.map(config, PluginTask.class);
         Schema outputSchema =  task.getFields().toSchema();
         GetRecordsByCursorResponseBody response = createSampleData();
-        when(kintoneClient.getResponse(any(PluginTask.class))).thenReturn(response);
+        when(kintoneClient.getResponse(any(PluginTask.class), any(Schema.class))).thenReturn(response);
+
+        ConfigDiff configDiff = kintoneInputPlugin.transaction(config, new Control());
+
+        assertTrue(configDiff.isEmpty());
+
+        List<PageReader> outputRecords = output.pages.stream().map((page) -> getPageReader(outputSchema, page)).collect(Collectors.toList());
+        PageReader reader1 = outputRecords.get(0);
+
+        Instant date1 = dateParser.parse("2020-01-01");
+        Instant timestamp1 = timestampParser.parse("2020-01-01T00:00:00Z");
+
+        assertEquals(2, outputRecords.size());
+
+        assertEquals("test single text", reader1.getString(0));
+        assertEquals(1L, reader1.getLong(1));
+        assertEquals(1.111, reader1.getDouble(2), 0);
+        assertEquals(date1, reader1.getTimestampInstant(3));
+        assertEquals(timestamp1, reader1.getTimestampInstant(4));
+
+        Instant date2 = dateParser.parse("2020-02-02");
+        Instant timestamp2 = timestampParser.parse("2020-02-02T00:00:00Z");
+
+        PageReader reader2 = outputRecords.get(1);
+        assertEquals("test single text2", reader2.getString(0));
+        assertEquals(2L, reader2.getLong(1));
+        assertEquals(2.222, reader2.getDouble(2), 0);
+        assertEquals(date2, reader2.getTimestampInstant(3));
+        assertEquals(timestamp2, reader2.getTimestampInstant(4));
+    }
+
+    @Test
+    public void checkEmptyFields()
+    {
+        config = loadYamlResource(embulk);
+        assertEquals("a", config.get(ArrayList.class, "fields"));
+        PluginTask task = configMapper.map(config, PluginTask.class);
+        Schema outputSchema =  task.getFields().toSchema();
+        GetRecordsByCursorResponseBody response = createSampleData();
+        when(kintoneClient.getResponse(any(PluginTask.class), any(Schema.class))).thenReturn(response);
 
         ConfigDiff configDiff = kintoneInputPlugin.transaction(config, new Control());
 
@@ -126,6 +168,7 @@ public class TestKintoneInputPlugin
         assertFalse(task.getBasicAuthUsername().isPresent());
         assertFalse(task.getBasicAuthPassword().isPresent());
         assertFalse(task.getQuery().isPresent());
+        assertFalse(task.getExpandSubtable());
         assertNotNull(task.getFields());
     }
 
@@ -140,6 +183,9 @@ public class TestKintoneInputPlugin
         record1.putField("baz",  new NumberFieldValue(1L));
         record1.putField("date",  new DateFieldValue(LocalDate.of(2020, 1, 1)));
         record1.putField("datetime",  new DateTimeFieldValue(ZonedDateTime.parse("2020-01-01T00:00:00Z")));
+        TableRow subtableRow1 = new TableRow();
+        subtableRow1.putField("subtable_num", new NumberFieldValue(1L));
+        record1.putField("subtable",  new SubtableFieldValue(subtableRow1));
         records.add(record1);
 
         record2.putField("foo",  new SingleLineTextFieldValue("test single text2"));
@@ -147,6 +193,9 @@ public class TestKintoneInputPlugin
         record2.putField("baz",  new NumberFieldValue(2L));
         record2.putField("date",  new DateFieldValue(LocalDate.of(2020, 2, 2)));
         record2.putField("datetime",  new DateTimeFieldValue(ZonedDateTime.parse("2020-02-02T00:00:00Z")));
+        TableRow subtableRow2 = new TableRow();
+        subtableRow2.putField("subtable_num", new NumberFieldValue(1L));
+        record1.putField("subtable",  new SubtableFieldValue(subtableRow2));
         records.add(record2);
 
         return new GetRecordsByCursorResponseBody(false, records);
