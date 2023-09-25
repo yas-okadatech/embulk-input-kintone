@@ -204,7 +204,6 @@ public class KintoneInputPlugin
             case NUMBER:
                 return Types.DOUBLE;
             case CREATED_TIME:
-            case DATE:
             case DATETIME:
             case UPDATED_TIME:
                 return Types.TIMESTAMP;
@@ -213,6 +212,7 @@ public class KintoneInputPlugin
             case CATEGORY:
             case CHECK_BOX:
             case CREATOR:
+            case DATE:
             case DROP_DOWN:
             case FILE:
             case GROUP_SELECT:
