@@ -185,6 +185,7 @@ public class KintoneInputPlugin
 
         // built in schema
         builder.add("$id", Types.LONG);
+        builder.add("$revision", Types.LONG);
 
         for (Map.Entry<String, FieldProperty> fieldEntry : fields.entrySet()) {
             builder.add(fieldEntry.getKey(), buildType(fieldEntry.getValue().getType()));
